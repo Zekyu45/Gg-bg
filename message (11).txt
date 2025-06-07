@@ -1,0 +1,126 @@
+--[[
+        Auto Infinite Shoot + Orb Collecter + Auto Nearest Egg Hatch + No Hatch Animation
+        || PS99 Basketball Event ||
+        Made By: Sub2BK / bkmd_ytt
+]]
+
+-- Wait For The Game To Loaded
+repeat task.wait() until game:IsLoaded()
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RS = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+
+repeat task.wait() until not player.PlayerGui:FindFirstChild("__INTRO")
+
+-- Modules
+local Network = require(ReplicatedStorage.Library.Client.Network)
+local Save = require(ReplicatedStorage.Library.Client.Save)
+local PlayerPet = require(ReplicatedStorage.Library.Client.PlayerPet)
+local EggCmds = require(ReplicatedStorage.Library.Client.EggCmds)
+local InstancingCmds = require(RS.Library.Client.InstancingCmds)
+
+-- Values
+local maxHatch = EggCmds.GetMaxHatch()
+local OrbsPath = workspace:WaitForChild("__DEBRIS")
+local shootRemote = ReplicatedStorage.Network:WaitForChild("Instancing_InvokeCustomFromClient")
+local HumanoidRootPart = player.Character:WaitForChild("HumanoidRootPart")
+
+-- Settings
+_G.AutoOpen = true
+local fallbackCFrame = CFrame.new(1882.58251953125, 16.709362030029297, -22506.265625)
+
+-- Removing Egg Animation
+local EggScript = player.PlayerScripts:WaitForChild("Scripts"):WaitForChild("Game"):WaitForChild("Egg Opening Frontend")
+getsenv(EggScript).PlayEggAnimation = function() return end
+
+task.wait(5)
+
+-- Function - Teleport Event
+local function Enter(Name)
+    setthreadidentity(2)
+    pcall(function()
+        InstancingCmds.Enter(Name)
+    end)
+    setthreadidentity(7)
+end
+
+Enter("BasketballEvent")
+
+task.wait(3)
+
+-- Auto Inf Shoot
+task.spawn(function()
+    while task.wait() do
+        pcall(function()
+            shootRemote:InvokeServer("BasketballEvent", "InfiniteShoot", 1)
+        end)
+    end
+end)
+
+-- Auto Orb Collecter + Fallback
+task.spawn(function()
+    local lastOrbTime = tick()
+
+    while task.wait() do
+        pcall(function()
+            local char = player.Character or player.CharacterAdded:Wait()
+            if not char:FindFirstChild("HumanoidRootPart") then return end
+
+            local foundOrb = false
+
+            for _, model in ipairs(OrbsPath:GetChildren()) do
+                if model:IsA("Model") and model:FindFirstChild("Orb") then
+                    char.HumanoidRootPart.CFrame = model.Orb.CFrame + Vector3.new(0, 5, 0)
+                    foundOrb = true
+                    lastOrbTime = tick()
+                    task.wait()
+                end
+            end
+
+            if not foundOrb and tick() - lastOrbTime > 0.25 then
+                char.HumanoidRootPart.CFrame = fallbackCFrame
+                lastOrbTime = tick()
+            end
+        end)
+    end
+end)
+
+-- Function - Find Nearest Egg
+local function find_nearest_egg()
+    local nearestEgg, nearestDistance = nil, math.huge
+    local eggsFolder = workspace.__THINGS:FindFirstChild("CustomEggs")
+    if not eggsFolder then return nil end
+
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+
+    for _, eggModel in ipairs(eggsFolder:GetChildren()) do
+        if eggModel:IsA("Model") and eggModel.PrimaryPart then
+            local dist = (hrp.Position - eggModel.PrimaryPart.Position).Magnitude
+            if dist < nearestDistance then
+                nearestEgg = eggModel.Name
+                nearestDistance = dist
+            end
+        end
+    end
+
+    return nearestEgg
+end
+
+-- Auto Hatch Nearest Egg
+task.spawn(function()
+    while task.wait() do
+        if _G.AutoOpen then
+            local nearestEgg = find_nearest_egg()
+            if nearestEgg then
+                pcall(function()
+                    Network.Invoke("CustomEggs_Hatch", nearestEgg, maxHatch)
+                end)
+            end
+        end
+    end
+end)
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/juywvm/-Roblox-Projects-/main/____Anti_Afk_Remastered_______"))()
